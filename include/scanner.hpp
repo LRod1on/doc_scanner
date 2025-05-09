@@ -1,3 +1,6 @@
+#ifndef SCANNER_HPP
+#define SCANNER_HPP
+
 #pragma once
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
@@ -21,3 +24,5 @@ private:
     std::vector<cv::Point> reorderCorners(std::vector<cv::Point> corners);
     cv::Mat applyWarp(cv::Mat& img, std::vector<cv::Point> corners);
 };
+
+#endif
