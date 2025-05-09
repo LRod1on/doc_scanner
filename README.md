@@ -6,4 +6,5 @@ It requires:
 - OpenCV
 - glwh
 - imgui  
-installed on your computer
+
+to be installed on your computer
