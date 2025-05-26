@@ -1,3 +1,5 @@
+#define _SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING
+
 #include "../include/scanner.hpp"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
@@ -7,12 +9,20 @@
 #include <vector>
 #include <ctime> 
 #include <iostream>
+// 2. Подключите правильный заголовочный файл
+#include <filesystem>
+
+// 3. Используйте правильный namespace
+namespace fs = std::filesystem;
+
 
 // Texture ID для отображения изображений
 GLuint webcam_tex = 0;
 GLuint scan_tex = 0;
 cv::Mat current_scan;
 std::string save_path = "scans/";
+static char path_buf[256] = "scans/"; // Статический буфер для пути
+
 
 // Конвертация OpenCV Mat в OpenGL текстуру
 void mat_to_texture(const cv::Mat& image, GLuint& tex_id, bool flip = true) {
@@ -25,11 +35,11 @@ void mat_to_texture(const cv::Mat& image, GLuint& tex_id, bool flip = true) {
 
     if (tex_id == 0) {
         glGenTextures(1, &tex_id);
+        glBindTexture(GL_TEXTURE_2D, tex_id);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, display_image.cols, display_image.rows, 0, GL_RGB, GL_UNSIGNED_BYTE, display_image.data);
     }
-    glBindTexture(GL_TEXTURE_2D, tex_id);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, display_image.cols, display_image.rows, 0, GL_RGB, GL_UNSIGNED_BYTE, display_image.data);
 }
 
 // Обновление текстуры
@@ -79,6 +89,14 @@ int main() {
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330 core");
 
+    // Настройка стилей ImGui
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); // Фон #FFFFFF
+    style.Colors[ImGuiCol_Button] = ImVec4(0.85f, 0.85f, 0.85f, 1.0f); // Кнопки #D9D9D9
+    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.75f, 0.75f, 0.75f, 1.0f);
+    style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.65f, 0.65f, 0.65f, 1.0f);
+    style.Colors[ImGuiCol_Text] = ImVec4(0.1f, 0.1f, 0.1f, 1.0f); // Текст
+
     // Инициализация сканера и веб-камеры
     DocumentScanner scanner;
     cv::VideoCapture cap(0);
@@ -111,21 +129,30 @@ int main() {
         if (!frame.empty()) {
             mat_to_texture(frame, webcam_tex);
         }
+        update_texture(webcam_tex, frame);
 
-        // Основное окно
+        // Окно интерфейса
         ImGui::Begin("Document Scanner", nullptr, 
-                     ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+                    ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | 
+                    ImGuiWindowFlags_NoScrollbar);
         
-        // Отображение веб-камеры
+        // Веб-камера (60% ширины окна)
+        ImGui::BeginChild("Webcam", ImVec2(ImGui::GetWindowWidth() * 0.6f, 0), true);
         ImGui::Text("Webcam Feed");
-        ImGui::Image((ImTextureID)webcam_tex, ImVec2(640, 480), ImVec2(0, 1), ImVec2(1, 0));
+        ImGui::Image(
+            (ImTextureID)(webcam_tex),
+            ImVec2(ImGui::GetContentRegionAvail().x, 480), 
+            ImVec2(0, 1), ImVec2(1, 0)
+        );
+        ImGui::EndChild();
 
-        // Кнопки
+        // Панель управления (40% ширины)
         ImGui::SameLine();
-        ImGui::BeginGroup();
+        ImGui::BeginChild("Controls", ImVec2(0, 0), true);
         
-        // Кнопка захвата
-        if (ImGui::Button("Capture", ImVec2(100, 40))) {
+        // Кнопки   
+        ImGui::Dummy(ImVec2(0, 20));
+        if(ImGui::Button("Capture", ImVec2(-1, 40))) {
             cv::Mat processed;
             cv::cvtColor(frame, processed, cv::COLOR_BGR2RGB);
             cv::imshow("image", processed);
@@ -136,25 +163,38 @@ int main() {
                 update_texture(scan_tex, current_scan);
             }
         }
-
-        // Сохранение пути
-        char buffer[256] = {0};
-        strncpy(buffer, save_path.c_str(), sizeof(buffer));
-        if (ImGui::InputText("Save Path", buffer, sizeof(buffer))) {
-            save_path = std::string(buffer);
-        }
         
-        // Кнопка сохранения скана
-        if (ImGui::Button("Save Scan", ImVec2(100, 40)) && !current_scan.empty()) {
-            std::string filename = save_path + "scan_" + std::to_string(time(nullptr)) + ".jpg";
-            cv::imwrite(filename, current_scan);
+
+        ImGui::Dummy(ImVec2(0, 20));
+        ImGui::InputText("Save Path", path_buf, IM_ARRAYSIZE(path_buf));
+        save_path = std::string(path_buf); // Синхронизация пути
+
+        ImGui::Dummy(ImVec2(0, 20));
+        if (ImGui::Button("Save Scan", ImVec2(-1, 40)) && !current_scan.empty()) {
+            // Нормализация пути
+            fs::path dir_path = fs::path(save_path).lexically_normal();
+            
+            if (!fs::exists(dir_path)) {
+                fs::create_directories(dir_path);
+            }
+
+            fs::path filename = dir_path / ("scan_" + std::to_string(time(nullptr)) + ".jpg");
+            
+            if (!cv::imwrite(filename.string(), current_scan)) {
+                std::cerr << "Save failed: " << filename << std::endl;
+            }
         }
 
         // Превью скана
+        ImGui::Dummy(ImVec2(0, 20));
         ImGui::Text("Scanned Document");
-        ImGui::Image((ImTextureID)scan_tex, ImVec2(400, 600), ImVec2(0, 1), ImVec2(1, 0));
-        
-        ImGui::EndGroup();
+        ImGui::Image(
+            (ImTextureID)(scan_tex),
+            ImVec2(400, 600), 
+            ImVec2(0, 1), ImVec2(1, 0)
+        );
+
+        ImGui::EndChild();
         ImGui::End();
 
         // Рендеринг

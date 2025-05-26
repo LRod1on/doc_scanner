@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(DocumentScanner)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ----  GLFW
 
@@ -30,7 +32,7 @@ find_package(OpenCV REQUIRED)
 # ---- Настройка DocumentScanner.exe
 
 add_executable(DocumentScanner
-    src/main_window.cpp
+    src/main_window_copy.cpp
     src/scanner.cpp
     ${IMGUI_SOURCES}  
 )
