@@ -32,7 +32,7 @@ find_package(OpenCV REQUIRED)
 # ---- Настройка DocumentScanner.exe
 
 add_executable(DocumentScanner
-    src/main_window_copy.cpp
+    src/main_window.cpp
     src/scanner.cpp
     ${IMGUI_SOURCES}  
 )

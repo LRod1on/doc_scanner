@@ -12,35 +12,12 @@
 // 2. Подключите правильный заголовочный файл
 #include <filesystem>
 
-// 3. Используйте правильный namespace
-namespace fs = std::filesystem;
+GLuint webcam_tex = 0;    // Идентификатор текстуры веб-камеры
+GLuint scan_tex = 0;       // Идентификатор текстуры скана
+cv::Mat current_scan;      // Текущий отсканированный документ
+std::string save_path = "scans/"; // Путь сохранения по умолчанию
+static char path_buf[256] = "scans/"; // Буфер для пути из GUI
 
-
-// Texture ID для отображения изображений
-GLuint webcam_tex = 0;
-GLuint scan_tex = 0;
-cv::Mat current_scan;
-std::string save_path = "scans/";
-static char path_buf[256] = "scans/"; // Статический буфер для пути
-
-
-// Конвертация OpenCV Mat в OpenGL текстуру
-void mat_to_texture(const cv::Mat& image, GLuint& tex_id, bool flip = true) {
-    if (image.empty()) return;
-
-    cv::Mat display_image;
-    cv::cvtColor(image, display_image, cv::COLOR_BGR2RGB);
-    
-    if (flip) cv::flip(display_image, display_image, 0);
-
-    if (tex_id == 0) {
-        glGenTextures(1, &tex_id);
-        glBindTexture(GL_TEXTURE_2D, tex_id);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, display_image.cols, display_image.rows, 0, GL_RGB, GL_UNSIGNED_BYTE, display_image.data);
-    }
-}
 
 // Обновление текстуры
 void update_texture(GLuint& tex_id, const cv::Mat& image) {
@@ -54,6 +31,31 @@ void update_texture(GLuint& tex_id, const cv::Mat& image) {
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 
                    display_image.cols, display_image.rows,
                    GL_RGB, GL_UNSIGNED_BYTE, display_image.data);
+}
+
+// Конвертация OpenCV Mat в OpenGL текстуру
+void mat_to_texture(const cv::Mat& image, GLuint& tex_id, bool flip = true) {
+    if (image.empty()) return;
+
+    // --- Исправлено преобразование цвета ---
+    cv::Mat display_image;
+    cv::cvtColor(image, display_image, cv::COLOR_BGR2RGB); // OpenCV (BGR) -> OpenGL (RGB)
+    
+    if (flip) cv::flip(display_image, display_image, 0);
+
+    if (tex_id == 0) {
+        // Гарантированная инициализация текстуры
+        glGenTextures(1, &tex_id);
+        glBindTexture(GL_TEXTURE_2D, tex_id);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 
+                    display_image.cols, display_image.rows, 
+                    0, GL_RGB, GL_UNSIGNED_BYTE, display_image.data);
+    } else {
+        // Оптимизация: повторное использование существующей текстуры 
+        update_texture(tex_id, image);
+    }
 }
 
 int main() {
@@ -146,7 +148,7 @@ int main() {
         );
         ImGui::EndChild();
 
-        // Панель управления (40% ширины)
+        // Панель управления (40% ширины окна)
         ImGui::SameLine();
         ImGui::BeginChild("Controls", ImVec2(0, 0), true);
         
@@ -172,13 +174,13 @@ int main() {
         ImGui::Dummy(ImVec2(0, 20));
         if (ImGui::Button("Save Scan", ImVec2(-1, 40)) && !current_scan.empty()) {
             // Нормализация пути
-            fs::path dir_path = fs::path(save_path).lexically_normal();
+            std::filesystem::path dir_path = std::filesystem::path(save_path).lexically_normal();
             
-            if (!fs::exists(dir_path)) {
-                fs::create_directories(dir_path);
+            if (!std::filesystem::exists(dir_path)) {
+                std::filesystem::create_directories(dir_path);
             }
 
-            fs::path filename = dir_path / ("scan_" + std::to_string(time(nullptr)) + ".jpg");
+            std::filesystem::path filename = dir_path / ("scan_" + std::to_string(time(nullptr)) + ".jpg");
             
             if (!cv::imwrite(filename.string(), current_scan)) {
                 std::cerr << "Save failed: " << filename << std::endl;
@@ -191,7 +193,7 @@ int main() {
         ImGui::Image(
             (ImTextureID)(scan_tex),
             ImVec2(400, 600), 
-            ImVec2(0, 1), ImVec2(1, 0)
+            ImVec2(0, 0), ImVec2(1, 1)
         );
 
         ImGui::EndChild();
