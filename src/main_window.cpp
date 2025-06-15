@@ -9,12 +9,11 @@
 #include <vector>
 #include <ctime> 
 #include <iostream>
-// 2. Подключите правильный заголовочный файл
 #include <filesystem>
 
-GLuint webcam_tex = 0;    // Идентификатор текстуры веб-камеры
-GLuint scan_tex = 0;       // Идентификатор текстуры скана
-cv::Mat current_scan;      // Текущий отсканированный документ
+GLuint webcam_tex = 0; // Идентификатор текстуры веб-камеры
+GLuint scan_tex = 0; // Идентификатор текстуры скана
+cv::Mat current_scan; // Текущий отсканированный документ
 std::string save_path = "scans/"; // Путь сохранения по умолчанию
 static char path_buf[256] = "scans/"; // Буфер для пути из GUI
 
@@ -37,9 +36,8 @@ void update_texture(GLuint& tex_id, const cv::Mat& image) {
 void mat_to_texture(const cv::Mat& image, GLuint& tex_id, bool flip = true) {
     if (image.empty()) return;
 
-    // --- Исправлено преобразование цвета ---
     cv::Mat display_image;
-    cv::cvtColor(image, display_image, cv::COLOR_BGR2RGB); // OpenCV (BGR) -> OpenGL (RGB)
+    cv::cvtColor(image, display_image, cv::COLOR_BGR2RGB); 
     
     if (flip) cv::flip(display_image, display_image, 0);
 
@@ -53,7 +51,7 @@ void mat_to_texture(const cv::Mat& image, GLuint& tex_id, bool flip = true) {
                     display_image.cols, display_image.rows, 
                     0, GL_RGB, GL_UNSIGNED_BYTE, display_image.data);
     } else {
-        // Оптимизация: повторное использование существующей текстуры 
+        // Повторное использование существующей текстуры 
         update_texture(tex_id, image);
     }
 }
